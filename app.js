@@ -1,193 +1,443 @@
 
-// Get HTML elements
-const form = document.getElementById("subscriptionForm");
-const subscriptionList = document.getElementById("subscriptionList");
+// ========================================
+// 1. GET HTML ELEMENTS
+// ========================================
 
-const monthlyTotal = document.getElementById("monthlyTotal");
-const yearlyTotal = document.getElementById("yearlyTotal");
-const activeCount = document.getElementById("activeCount");
+const subscriptionForm = document.getElementById("subscriptionForm");
 
-const searchInput = document.getElementById("search");
-const filterSelect = document.getElementById("filter");
+const serviceInput = document.getElementById("service");
+const providerInput = document.getElementById("provider");
+const subscriberInput = document.getElementById("subscriber");
+const renewalDateInput = document.getElementById("renewalDate");
+const categoryInput = document.getElementById("category");
 
-// Load subscriptions from localStorage
-let subscriptions = JSON.parse(
-    localStorage.getItem("subscriptions")
-) || [];
+const submitBtn = document.getElementById("submitBtn");
 
-// Save subscriptions
-function saveSubscriptions() {
-    localStorage.setItem(
-        "subscriptions",
-        JSON.stringify(subscriptions)
-    );
+const tableBody = document.getElementById("subscriptionTableBody");
+
+const totalSubscriptionsElement =
+    document.getElementById("totalSubscriptions");
+
+const expiredSubscriptionsElement =
+    document.getElementById("expiredSubscriptions");
+
+
+// ========================================
+// 2. LOAD DATA FROM LOCAL STORAGE
+// ========================================
+
+let subscriptions = [];
+
+try {
+    const savedSubscriptions = localStorage.getItem("subscriptions");
+
+    if (savedSubscriptions) {
+        const parsedData = JSON.parse(savedSubscriptions);
+
+        subscriptions = Array.isArray(parsedData)
+            ? parsedData
+            : [];
+    }
+} catch (error) {
+    console.error("Error loading subscriptions:", error);
 }
 
-// Display subscriptions
-function displaySubscriptions() {
-    subscriptionList.innerHTML = "";
 
-    const searchValue = searchInput.value.toLowerCase();
-    const filterValue = filterSelect.value;
+// ID of the subscription currently being edited
+let editingId = null;
 
-    const filteredSubscriptions = subscriptions.filter(sub => {
-        const matchesSearch = sub.name.toLowerCase().includes(searchValue);
-        const matchesCategory =
-            filterValue === "All" || sub.category === filterValue;
 
-        return matchesSearch && matchesCategory;
-    });
+// ========================================
+// 3. SAVE DATA TO LOCAL STORAGE
+// ========================================
 
-    filteredSubscriptions.forEach(sub => {
-        const card = document.createElement("div");
-        card.className = "subscription-card";
+function saveSubscriptions() {
 
-        const info = document.createElement("div");
+    try {
+        localStorage.setItem(
+            "subscriptions",
+            JSON.stringify(subscriptions)
+        );
 
-        const title = document.createElement("h3");
-        title.textContent = sub.name;
-
-        const category = document.createElement("p");
-        category.textContent = "Category: " + sub.category;
-
-        const price = document.createElement("p");
-        price.textContent = `Price: €${sub.price.toFixed(2)} / ${sub.billing}`;
-
-        const date = document.createElement("p");
-        date.textContent = "Renewal: " + sub.renewalDate;
-
-        info.append(title, category, price, date);
-
-        const actions = document.createElement("div");
-        actions.className = "actions";
-
-        const editButton = document.createElement("button");
-        editButton.textContent = "Edit";
-        editButton.className = "edit-btn";
-        editButton.onclick = () => editSubscription(sub.id);
-
-        const deleteButton = document.createElement("button");
-        deleteButton.textContent = "Delete";
-        deleteButton.className = "delete-btn";
-        deleteButton.onclick = () => deleteSubscription(sub.id);
-
-        actions.append(editButton, deleteButton);
-
-        card.append(info, actions);
-        subscriptionList.appendChild(card);
-    });
-
-    if (filteredSubscriptions.length === 0) {
-        subscriptionList.textContent = "No subscriptions found.";
+    } catch (error) {
+        console.error("Error saving subscriptions:", error);
+        alert("Could not save subscriptions to localStorage.");
     }
 
-    updateDashboard();
 }
 
-// Add or edit subscription
-form.addEventListener("submit", function(event) {
+
+// ========================================
+// 4. GET CURRENT DATE
+// ========================================
+
+function getTodayDate() {
+
+    const today = new Date();
+
+    const year = today.getFullYear();
+
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+
+    const day = String(today.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+
+}
+
+
+// ========================================
+// 5. CALCULATE SUBSCRIPTION STATUS
+// ========================================
+
+function getSubscriptionStatus(renewalDate) {
+
+    const today = getTodayDate();
+
+    if (renewalDate < today) {
+        return "Expired";
+    }
+
+    return "Active";
+
+}
+
+
+// ========================================
+// 6. DISPLAY SUBSCRIPTIONS
+// ========================================
+
+function displaySubscriptions() {
+
+    // Clear existing table rows
+    tableBody.innerHTML = "";
+
+    // Check if there are no subscriptions
+    if (subscriptions.length === 0) {
+
+        const row = document.createElement("tr");
+
+        const cell = document.createElement("td");
+
+        cell.colSpan = 7;
+        cell.className = "empty-message";
+        cell.textContent = "No subscriptions found.";
+
+        row.appendChild(cell);
+
+        tableBody.appendChild(row);
+
+    } else {
+
+        // Loop through all subscriptions
+        subscriptions.forEach(subscription => {
+
+            const row = document.createElement("tr");
+
+            // Service
+            const serviceCell = document.createElement("td");
+            serviceCell.textContent = subscription.service;
+
+            // Provider
+            const providerCell = document.createElement("td");
+            providerCell.textContent = subscription.provider;
+
+            // Subscriber
+            const subscriberCell = document.createElement("td");
+            subscriberCell.textContent = subscription.subscriber;
+
+            // Renewal Date
+            const renewalDateCell = document.createElement("td");
+            renewalDateCell.textContent = subscription.renewalDate;
+
+            // Category
+            const categoryCell = document.createElement("td");
+            categoryCell.textContent = subscription.category;
+
+            // Status
+            const statusCell = document.createElement("td");
+
+            const status = getSubscriptionStatus(
+                subscription.renewalDate
+            );
+
+            const statusBadge = document.createElement("span");
+
+            statusBadge.classList.add("status");
+
+            statusBadge.classList.add(
+                status.toLowerCase()
+            );
+
+            statusBadge.textContent = status;
+
+            statusCell.appendChild(statusBadge);
+
+            // Action buttons
+            const actionCell = document.createElement("td");
+
+            const actionButtons = document.createElement("div");
+
+            actionButtons.className = "action-buttons";
+
+            // Edit button
+            const editButton = document.createElement("button");
+
+            editButton.type = "button";
+            editButton.textContent = "Edit";
+            editButton.className = "edit-btn";
+
+            editButton.addEventListener("click", function() {
+                editSubscription(subscription.id);
+            });
+
+            // Delete button
+            const deleteButton = document.createElement("button");
+
+            deleteButton.type = "button";
+            deleteButton.textContent = "Delete";
+            deleteButton.className = "delete-btn";
+
+            deleteButton.addEventListener("click", function() {
+                deleteSubscription(subscription.id);
+            });
+
+            // Add buttons to action column
+            actionButtons.append(editButton, deleteButton);
+
+            actionCell.appendChild(actionButtons);
+
+            // Add all cells to the row
+            row.append(
+                serviceCell,
+                providerCell,
+                subscriberCell,
+                renewalDateCell,
+                categoryCell,
+                statusCell,
+                actionCell
+            );
+
+            // Add row to the table
+            tableBody.appendChild(row);
+
+        });
+
+    }
+
+    // Update summary
+    updateSummary();
+
+}
+
+
+// ========================================
+// 7. ADD OR UPDATE SUBSCRIPTION
+// ========================================
+
+subscriptionForm.addEventListener("submit", function(event) {
+
     event.preventDefault();
 
-    const id = document.getElementById("editId").value;
+    // Get values from form
+    const service = serviceInput.value.trim();
 
-    const subscription = {
-        id: id || crypto.randomUUID(),
-        name: document.getElementById("name").value.trim(),
-        price: Number(document.getElementById("price").value),
-        category: document.getElementById("category").value,
-        billing: document.getElementById("billing").value,
-        renewalDate: document.getElementById("renewalDate").value
-    };
+    const provider = providerInput.value.trim();
 
+    const subscriber = subscriberInput.value.trim();
+
+    const renewalDate = renewalDateInput.value;
+
+    const category = categoryInput.value;
+
+    // Validate required fields
     if (
-        !subscription.name ||
-        !Number.isFinite(subscription.price) ||
-        subscription.price <= 0 ||
-        !subscription.category ||
-        !subscription.renewalDate
+        !service ||
+        !provider ||
+        !subscriber ||
+        !renewalDate ||
+        !category
     ) {
-        alert("Please enter valid subscription details.");
+
+        alert("Please complete all required fields.");
+
         return;
     }
 
-    if (id) {
-        subscriptions = subscriptions.map(sub =>
-            sub.id === id ? subscription : sub
-        );
+    // Create subscription object
+    const subscription = {
+
+        id: editingId || (
+            crypto.randomUUID
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random()}`
+        ),
+
+        service: service,
+
+        provider: provider,
+
+        subscriber: subscriber,
+
+        renewalDate: renewalDate,
+
+        category: category
+
+    };
+
+
+    if (editingId !== null) {
+
+        // Update existing subscription
+        subscriptions = subscriptions.map(item => {
+
+            if (item.id === editingId) {
+                return subscription;
+            }
+
+            return item;
+
+        });
+
     } else {
+
+        // Add new subscription
         subscriptions.push(subscription);
+
     }
 
+
+    // Save changes
     saveSubscriptions();
-    form.reset();
 
-    document.getElementById("editId").value = "";
-    document.getElementById("submitBtn").textContent =
-        "Add Subscription";
+    // Reset form
+    resetForm();
 
+    // Refresh table
     displaySubscriptions();
+
 });
 
-// Edit subscription
+
+// ========================================
+// 8. EDIT SUBSCRIPTION
+// ========================================
+
 function editSubscription(id) {
-    const sub = subscriptions.find(sub => sub.id === id);
 
-    if (!sub) return;
-
-    document.getElementById("editId").value = sub.id;
-    document.getElementById("name").value = sub.name;
-    document.getElementById("price").value = sub.price;
-    document.getElementById("category").value = sub.category;
-    document.getElementById("billing").value = sub.billing;
-    document.getElementById("renewalDate").value = sub.renewalDate;
-
-    document.getElementById("submitBtn").textContent =
-        "Update Subscription";
-
-    document.querySelector(".form-section").scrollIntoView({
-        behavior: "smooth"
+    // Find subscription by ID
+    const subscription = subscriptions.find(item => {
+        return item.id === id;
     });
+
+    if (!subscription) {
+        return;
+    }
+
+    // Store editing ID
+    editingId = id;
+
+    // Fill form with existing data
+    serviceInput.value = subscription.service;
+
+    providerInput.value = subscription.provider;
+
+    subscriberInput.value = subscription.subscriber;
+
+    renewalDateInput.value = subscription.renewalDate;
+
+    categoryInput.value = subscription.category;
+
+    // Change button text
+    submitBtn.textContent = "Update Subscription";
+
+    // Scroll to form
+    subscriptionForm.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+    });
+
 }
 
-// Delete subscription
+
+// ========================================
+// 9. DELETE SUBSCRIPTION
+// ========================================
+
 function deleteSubscription(id) {
+
     const confirmed = confirm(
         "Are you sure you want to delete this subscription?"
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+        return;
+    }
 
-    subscriptions = subscriptions.filter(sub => sub.id !== id);
-
-    saveSubscriptions();
-    displaySubscriptions();
-}
-
-// Update dashboard statistics
-function updateDashboard() {
-    let monthly = 0;
-    let yearly = 0;
-
-    subscriptions.forEach(sub => {
-        if (sub.billing === "Monthly") {
-            monthly += sub.price;
-            yearly += sub.price * 12;
-        } else {
-            monthly += sub.price / 12;
-            yearly += sub.price;
-        }
+    // Remove subscription from array
+    subscriptions = subscriptions.filter(item => {
+        return item.id !== id;
     });
 
-    monthlyTotal.textContent = `€${monthly.toFixed(2)}`;
-    yearlyTotal.textContent = `€${yearly.toFixed(2)}`;
-    activeCount.textContent = subscriptions.length;
+    // If deleting the subscription being edited,
+    // reset the form
+    if (editingId === id) {
+        resetForm();
+    }
+
+    // Save updated data
+    saveSubscriptions();
+
+    // Refresh table
+    displaySubscriptions();
+
 }
 
-// Search subscriptions
-searchInput.addEventListener("input", displaySubscriptions);
 
-// Filter subscriptions
-filterSelect.addEventListener("change", displaySubscriptions);
+// ========================================
+// 10. RESET FORM
+// ========================================
 
-// Initial display
+function resetForm() {
+
+    subscriptionForm.reset();
+
+    editingId = null;
+
+    submitBtn.textContent = "Add Subscription";
+
+}
+
+
+// ========================================
+// 11. UPDATE SUMMARY
+// ========================================
+
+function updateSummary() {
+
+    // Total subscriptions
+    const total = subscriptions.length;
+
+    // Count expired subscriptions
+    const expired = subscriptions.filter(subscription => {
+
+        return getSubscriptionStatus(
+            subscription.renewalDate
+        ) === "Expired";
+
+    }).length;
+
+    // Update HTML elements
+    totalSubscriptionsElement.textContent = total;
+
+    expiredSubscriptionsElement.textContent = expired;
+
+}
+
+
+// ========================================
+// 12. INITIALIZE APPLICATION
+// ========================================
+
+// Display saved subscriptions when page loads
 displaySubscriptions();
